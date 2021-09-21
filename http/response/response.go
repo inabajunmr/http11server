@@ -1,6 +1,7 @@
 package response
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -29,32 +30,20 @@ func (r EchoResponse) Headers() header.Headers {
 }
 
 func (r EchoResponse) Body() []byte {
-	return []byte(fmt.Sprintf(`<html><head><title>HTTP/1.1</title></head>
-<body>
-    <h1>Echo</h1>
-    <h2>Method</h2>
-	<span>%v<span>
-    <h2>Target</h2>
-	<span>%v<span>
-    <h2>Version</h2>
-	<span>%v<span>
-    <h2>Headers</h2>
-	<span>%v<span>
-	<h2>Body</h2>
-	<span>%v<span>
-	<h2>POST<h2>
-	<form action="/" method="post">
-	<textarea name="text" rows="5">Yeah</textarea>
-	<div>
-	  <button>Post</button>
-	</div>
-  </form>	
-</body>
-<htmL>`, r.Request.StartLine.Method.ToString(),
-		r.Request.StartLine.RequestTarget,
-		r.Request.StartLine.Version.ToString(),
-		r.Request.Headers.ToString(),
-		string(r.Request.Body)))
+
+	headerStrs := []string{}
+	for _, h := range r.Request.Headers {
+		headerStrs = append(headerStrs, h.ToString())
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"method":         r.Request.StartLine.Method.ToString(),
+		"request_target": r.Request.StartLine.RequestTarget,
+		"version":        r.Request.StartLine.Version.ToString(),
+		"headers":        headerStrs,
+		"body":           string(r.Request.Body),
+	}) // TODO err
+	return body
 }
 
 func (r EchoResponse) Response(conn net.Conn) {

@@ -2,6 +2,7 @@ package request
 
 import (
 	"bufio"
+	"strconv"
 	"strings"
 
 	"github.com/inabajunmr/http11server/http"
@@ -61,18 +62,42 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 			return nil, err
 		}
 		var body = make([]byte, length)
-		l, err := reader.Read(body) // TODO if body is shorter than length?
+		l, _ := reader.Read(body) // TODO if body is shorter than length?
 		if l != length {
 			return nil, &http.HTTPError{Msg: "Content-Length and real body size are different.", Status: 400}
 		}
 		return body, nil
 	} else {
 		if headers.IsChunkedTransferEncoding() {
-			return nil, nil // TODO
+			// TODO trailer
+			// TODO compress
+			return parseChunkBody(reader), nil
 		} else {
 			return nil, &http.HTTPError{Msg: "Transfer-Encoding is invalid.", Status: 400}
 		}
 	}
+}
+
+func parseChunkBody(reader *bufio.Reader) []byte {
+	chunks := []byte{}
+	for {
+		l := readLine(reader)
+		chunkSize := ParseChunkSize(l)
+		if chunkSize == 0 {
+			break
+		}
+		var chunk = make([]byte, chunkSize)
+		reader.Read(chunk)
+		readLine(reader) // skip to next line
+		chunks = append(chunks, chunk...)
+	}
+	return chunks
+}
+
+func ParseChunkSize(line string) int64 {
+	v, _ := strconv.ParseInt(line, 16, 64) // TODO error
+	// TODO chunk-ext
+	return v
 }
 
 func readLine(reader *bufio.Reader) string {

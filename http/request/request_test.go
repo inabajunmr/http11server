@@ -100,6 +100,20 @@ bbbbb
 	_, err := ParseRequest(bufio.NewReader((strings.NewReader(request))))
 	if err.Error() != "Content-Length and real body size are different." {
 		t.Errorf("Unexpected err: %v", err.Error())
+	}
+}
 
+func TestParseChunkBody(t *testing.T) {
+	request := `1
+a
+2
+bb
+1e
+aaaaaaaaaabbbbbbbbbbcccccccccc
+0`
+	body := parseChunkBody(bufio.NewReader((strings.NewReader(request))))
+
+	if string(body) != `abbaaaaaaaaaabbbbbbbbbbcccccccccc` {
+		t.Errorf("Unexpected body: %v", string(body))
 	}
 }

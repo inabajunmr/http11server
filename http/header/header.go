@@ -25,10 +25,14 @@ const (
 	IDENTITY
 )
 
+func (h Header) ToString() string {
+	return fmt.Sprintf("%v: %v", h.FieldName, h.FieldValue)
+}
+
 func (hs Headers) ToString() string {
 	v := ""
 	for _, h := range hs {
-		v += fmt.Sprintf("%v: %v\n", h.FieldName, h.FieldValue)
+		v += h.ToString() + "\n"
 	}
 	return v
 }
