@@ -56,13 +56,14 @@ func TestPost_Chunkded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req.TransferEncoding = []string{"chunked"}
+
 	go func() {
 		wr.Write([]byte("hello"))
 		wr.Write([]byte("hello"))
 		wr.Write([]byte("hello"))
 		wr.Close()
 	}()
-	req.TransferEncoding = []string{"chunked"}
 	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {

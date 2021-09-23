@@ -2,6 +2,10 @@ package request
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
+	"io/ioutil"
+	"log"
 	"strconv"
 	"strings"
 
@@ -71,7 +75,20 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 		if headers.IsChunkedTransferEncoding() {
 			// TODO trailer
 			// TODO compress
-			return parseChunkBody(reader), nil
+			b := parseChunkBody(reader)
+			t := headers.GetCompressType()
+			log.Println(t)
+			switch t {
+			case header.GZIP:
+				// TODO untested because I can't find HTTP Client send 'Transfer-Encoding: gzip, chunked
+				gr, _ := gzip.NewReader(bytes.NewReader(b)) // TODO
+				unzip, _ := ioutil.ReadAll(gr)              // TODO
+				return unzip, nil
+			default:
+				return b, nil
+
+			}
+
 		} else {
 			return nil, &http.HTTPError{Msg: "Transfer-Encoding is invalid.", Status: 400}
 		}

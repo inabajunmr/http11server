@@ -72,6 +72,15 @@ func (h Headers) IsChunkedTransferEncoding() bool {
 	return false
 }
 
+func (h Headers) GetCompressType() TransferEncoding {
+	for _, te := range h.GetTransferEncodings() {
+		if te != CHUNKED {
+			return te
+		}
+	}
+	return IDENTITY
+}
+
 func (h Headers) filter(key string) Headers {
 	var headers = Headers{}
 	for _, header := range h {
