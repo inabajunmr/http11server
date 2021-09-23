@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -21,37 +22,43 @@ func Serve() {
 	checkError(err)
 	listener, err = net.ListenTCP("tcp4", tcpAddr)
 	checkError(err)
+	conn, _ := listener.AcceptTCP()
+	reader := bufio.NewReader(conn)
+
 	for {
-		log.Println("Listen")
-		conn, err := listener.Accept()
-		if err != nil {
-			return
+		if processRequest(conn, reader) {
+			log.Println("Close")
+			conn.Close()
+			conn, _ = listener.AcceptTCP()
+			reader = bufio.NewReader(conn)
 		}
-
-		reader := bufio.NewReader(conn)
-		req, err := request.ParseRequest(reader)
-		if err != nil {
-			switch httpErr := err.(type) {
-			case *http.HTTPError:
-				res := &response.EchoResponse{Version: http.HTTP11, StatusCode: httpErr.Status, ReasonPhrase: httpErr.Msg}
-				res.Response(conn)
-				conn.Close()
-			default:
-				res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 503, ReasonPhrase: "Service Unavailable"}
-				res.Response(conn)
-				conn.Close()
-			}
-			continue
-		}
-
-		log.Println(req.StartLine.ToString())
-		log.Println(req.Headers.ToString())
-		log.Println(string(req.Body))
-
-		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: *req}
-		res.Response(conn)
-		conn.Close()
 	}
+}
+
+func processRequest(conn net.Conn, reader *bufio.Reader) bool {
+	req, err := request.ParseRequest(reader)
+	if err != nil {
+		switch httpErr := err.(type) {
+		case *http.HTTPError:
+			res := &response.EchoResponse{Version: http.HTTP11, StatusCode: httpErr.Status, ReasonPhrase: httpErr.Msg}
+			res.Response(conn)
+		default:
+			if err == io.EOF {
+				return true
+			}
+			res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 503, ReasonPhrase: "Service Unavailable"}
+			res.Response(conn)
+		}
+		return false
+	}
+
+	log.Println(req.StartLine.ToString())
+	log.Println(req.Headers.ToString())
+	log.Println(string(req.Body))
+
+	res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: *req}
+	res.Response(conn)
+	return req.Headers.IsConnectionClose()
 }
 
 func Stop() {

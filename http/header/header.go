@@ -37,6 +37,14 @@ func (hs Headers) ToString() string {
 	return v
 }
 
+func (h Headers) IsConnectionClose() bool {
+	filtered := h.filter("CONNECTION")
+	if len(filtered) == 0 {
+		return false
+	}
+	return filtered[0].FieldValue == "close"
+}
+
 func (h Headers) GetContentLength() (int, error) {
 	filtered := h.filter("CONTENT-LENGTH")
 	if len(filtered) >= 2 {

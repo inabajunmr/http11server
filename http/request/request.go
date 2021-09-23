@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"io"
 	"io/ioutil"
 	"log"
 	"strconv"
@@ -20,11 +21,19 @@ type Request struct {
 }
 
 func ParseRequest(reader *bufio.Reader) (*Request, error) {
-	startLine, err := ParseStartLine(readLine(reader))
+	l, err := readLine(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	startLine, err := ParseStartLine(*l)
 	if err != nil {
 		return nil, err
 	}
 	headers, err := readHeaders(reader)
+	if err == io.EOF {
+		return &Request{StartLine: *startLine, Headers: *headers, Body: nil}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +48,18 @@ func ParseRequest(reader *bufio.Reader) (*Request, error) {
 func readHeaders(reader *bufio.Reader) (*header.Headers, error) {
 	headers := header.Headers{}
 	for {
-		line := readLine(reader)
-		if line == "" {
+		line, err := readLine(reader)
+		if err == io.EOF {
+			return &headers, err
+		}
+		if err != nil {
+			return nil, err
+		}
+		if *line == "" {
 			// next is request body...
 			return &headers, nil
 		}
-		h, err := header.ParseHeader(line)
+		h, err := header.ParseHeader(*line)
 		if err != nil {
 			switch err.(type) {
 			case *http.HTTPError:
@@ -98,17 +113,21 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 func parseChunkBody(reader *bufio.Reader) []byte {
 	chunks := []byte{}
 	for {
-		l := readLine(reader)
-		chunkSize := ParseChunkSize(l)
+		l, err := readLine(reader) // TODO error
+		if err == io.EOF {
+			return chunks
+
+		}
+
+		chunkSize := ParseChunkSize(*l)
 		if chunkSize == 0 {
-			break
+			return chunks
 		}
 		var chunk = make([]byte, chunkSize)
 		reader.Read(chunk)
 		readLine(reader) // skip to next line
 		chunks = append(chunks, chunk...)
 	}
-	return chunks
 }
 
 func ParseChunkSize(line string) int64 {
@@ -117,10 +136,11 @@ func ParseChunkSize(line string) int64 {
 	return v
 }
 
-func readLine(reader *bufio.Reader) string {
+func readLine(reader *bufio.Reader) (*string, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		return ""
+		return nil, err
 	}
-	return strings.Trim(line, "\r\n")
+	t := strings.Trim(line, "\r\n")
+	return &t, nil
 }

@@ -30,6 +30,71 @@ func TestGet(t *testing.T) {
 		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
 }
 
+func TestGet_ConnectionClosed(t *testing.T) {
+	req, err := http.NewRequest("GET", "http://localhost:80", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Connection", "close")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip", "CONNECTION: close")
+
+}
+
+func TestGet_KeepAlive(t *testing.T) {
+	resp, err := http.Get("http://localhost:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+
+	resp, err = http.Get("http://localhost:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+
+	resp, err = http.Get("http://localhost:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+
+}
+
 func TestPost(t *testing.T) {
 	resp, err := http.Post("http://localhost:80",
 		"application/x-www-form-urlencoded",

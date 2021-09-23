@@ -24,7 +24,6 @@ func (r EchoResponse) StatusLine() string {
 
 func (r EchoResponse) Headers() header.Headers {
 	headers := header.Headers{}
-	headers = append(headers, &header.Header{FieldName: "Connection", FieldValue: "close"})
 	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(r.Body()))})
 	return headers
 }
