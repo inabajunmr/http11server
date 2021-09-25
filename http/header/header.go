@@ -15,16 +15,6 @@ type Header struct {
 
 type Headers []*Header
 
-type TransferEncoding int
-
-const (
-	CHUNKED TransferEncoding = iota
-	COMPRESS
-	DEFLATE
-	GZIP
-	IDENTITY
-)
-
 func (h Header) ToString() string {
 	return fmt.Sprintf("%v: %v", h.FieldName, h.FieldValue)
 }
@@ -67,6 +57,21 @@ func (h Headers) GetContentLength() (int, error) {
 	return length, nil
 }
 
+func (h Headers) GetContentEncodings() []ContentCoding {
+	ces := []ContentCoding{}
+	filtered := h.filter("CONTENT-ENCODING")
+	if len(filtered) == 0 {
+		ces = append(ces, CONTENT_CODING_IDENTITY)
+		return ces
+	}
+
+	vs := strings.Split(filtered[0].FieldValue, ",")
+	for _, v := range vs {
+		ces = append(ces, getContentCoding(strings.TrimSpace(v)))
+	}
+	return ces
+}
+
 func (h Headers) GetTransferEncodings() []TransferEncoding {
 	var tes = []TransferEncoding{}
 	filtered := h.filter("TRANSFER-ENCODING")
@@ -80,7 +85,7 @@ func (h Headers) GetTransferEncodings() []TransferEncoding {
 
 func (h Headers) IsChunkedTransferEncoding() bool {
 	for _, te := range h.GetTransferEncodings() {
-		if te == CHUNKED {
+		if te == TRANSFER_ENCODING_CHUNKED {
 			return true
 		}
 	}
@@ -89,11 +94,30 @@ func (h Headers) IsChunkedTransferEncoding() bool {
 
 func (h Headers) GetCompressType() TransferEncoding {
 	for _, te := range h.GetTransferEncodings() {
-		if te != CHUNKED {
+		if te != TRANSFER_ENCODING_CHUNKED {
 			return te
 		}
 	}
-	return IDENTITY
+	return TRANSFER_ENCODING_IDENTITY
+}
+
+type ContentType struct {
+	contentType string
+	subtype     string
+}
+
+func (h Headers) GetContentType() ContentType {
+	c := h.filter("Content-Type")
+	if len(c) == 0 {
+		return ContentType{contentType: "application/octet-stream"}
+	}
+
+	s := strings.Split(c[0].FieldValue, ";")
+	if len(s) >= 2 {
+		return ContentType{contentType: s[0], subtype: s[1]}
+	} else {
+		return ContentType{contentType: s[0]}
+	}
 }
 
 func (h Headers) filter(key string) Headers {
@@ -104,22 +128,6 @@ func (h Headers) filter(key string) Headers {
 		}
 	}
 	return headers
-}
-
-func getTransferEncoding(v string) TransferEncoding {
-	switch v {
-	case "chunked":
-		return CHUNKED
-	case "compress":
-		return COMPRESS
-	case "deflate":
-		return DEFLATE
-	case "gzip":
-		return GZIP
-	case "identity":
-		return IDENTITY
-	}
-	return 0 // TODO
 }
 
 func ParseHeader(line string) (*Header, error) {

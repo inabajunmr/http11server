@@ -93,7 +93,7 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 		if l != length {
 			return nil, &http.HTTPError{Msg: "Content-Length and real body size are different.", Status: 400}
 		}
-		return body, nil
+		return decompress(body, headers), nil
 	} else {
 		if headers.IsChunkedTransferEncoding() {
 			// TODO trailer
@@ -102,13 +102,13 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 			t := headers.GetCompressType()
 			log.Println(t)
 			switch t {
-			case header.GZIP:
+			case header.TRANSFER_ENCODING_GZIP:
 				// TODO untested because I can't find HTTP Client send 'Transfer-Encoding: gzip, chunked
 				gr, _ := gzip.NewReader(bytes.NewReader(b)) // TODO
 				unzip, _ := ioutil.ReadAll(gr)              // TODO
 				return unzip, nil
 			default:
-				return b, nil
+				return decompress(b, headers), nil
 
 			}
 
@@ -116,6 +116,23 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 			return nil, &http.HTTPError{Msg: "Transfer-Encoding is invalid.", Status: 400}
 		}
 	}
+}
+
+func decompress(b []byte, headers header.Headers) []byte {
+	ces := headers.GetContentEncodings()
+	log.Println(ces)
+	for _, ce := range ces {
+		switch ce {
+		case header.CONTENT_CODING_GZIP: // TODO defrate, compress
+			br := bytes.NewReader(b)
+			gr, _ := gzip.NewReader(br)
+			b, _ = ioutil.ReadAll(gr)
+			log.Println(string(b))
+		case header.CONTENT_CODING_IDENTITY:
+			// NOP
+		}
+	}
+	return b
 }
 
 func parseChunkBody(reader *bufio.Reader) []byte {

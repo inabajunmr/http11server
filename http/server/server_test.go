@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -111,6 +113,34 @@ func TestPost(t *testing.T) {
 	assertResponse(t, b, "aaaaabbbbbccccc", "POST", "/", "HTTP/1.1",
 		"CONTENT-TYPE: application/x-www-form-urlencoded", "USER-AGENT: Go-http-client/1.1",
 		"CONTENT-LENGTH: 15", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+}
+
+func TestPost_ContentEncodingGzip(t *testing.T) {
+	// create gziped request
+	var buffer bytes.Buffer
+	writer := gzip.NewWriter(&buffer)
+	writer.Write([]byte("hellohellohello"))
+	writer.Close()
+	gzip := buffer.Bytes()
+
+	req, err := http.NewRequest("POST", "http://localhost:80",
+		bytes.NewReader(gzip))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Content-Encoding", "gzip")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := ioutil.ReadAll(resp.Body)
+
+	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 31",
+		"HOST: localhost:80", "CONTENT-ENCODING: gzip", "ACCEPT-ENCODING: gzip")
 }
 
 func TestPost_Chunkded(t *testing.T) {
