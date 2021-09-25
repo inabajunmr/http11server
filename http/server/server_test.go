@@ -143,6 +143,40 @@ func TestPost_ContentEncodingGzip(t *testing.T) {
 		"HOST: localhost:80", "CONTENT-ENCODING: gzip", "ACCEPT-ENCODING: gzip")
 }
 
+func TestPost_ContentEncodingGzipGzip(t *testing.T) {
+	// create gziped request
+	var buffer1 bytes.Buffer
+	writer := gzip.NewWriter(&buffer1)
+	writer.Write([]byte("hellohellohello"))
+	writer.Close()
+	gziped := buffer1.Bytes()
+
+	var buffer2 bytes.Buffer
+	writer = gzip.NewWriter(&buffer2)
+	writer.Write(gziped)
+	writer.Close()
+	gziped = buffer2.Bytes()
+
+	req, err := http.NewRequest("POST", "http://localhost:80",
+		bytes.NewReader(gziped))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Content-Encoding", "gzip, gzip")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := ioutil.ReadAll(resp.Body)
+
+	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 50",
+		"HOST: localhost:80", "CONTENT-ENCODING: gzip, gzip", "ACCEPT-ENCODING: gzip")
+}
+
 func TestPost_Chunkded(t *testing.T) {
 	rd, wr := io.Pipe()
 	defer rd.Close()
