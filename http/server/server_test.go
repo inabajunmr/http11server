@@ -4,20 +4,27 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
-	go Serve()
+	go Serve(0)
 	m.Run()
 }
 
+func addr() string {
+	log.Printf("http://localhost:%v", PORT)
+	return fmt.Sprintf("http://localhost:%v", PORT)
+}
+
 func TestGet(t *testing.T) {
-	resp, err := http.Get("http://localhost:80")
+	resp, err := http.Get(addr())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,11 +35,11 @@ func TestGet(t *testing.T) {
 	}
 
 	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
-		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 }
 
 func TestGet_ConnectionClosed(t *testing.T) {
-	req, err := http.NewRequest("GET", "http://localhost:80", nil)
+	req, err := http.NewRequest("GET", addr(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,12 +57,12 @@ func TestGet_ConnectionClosed(t *testing.T) {
 	}
 
 	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
-		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip", "CONNECTION: close")
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "CONNECTION: close")
 
 }
 
 func TestGet_KeepAlive(t *testing.T) {
-	resp, err := http.Get("http://localhost:80")
+	resp, err := http.Get(addr())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,9 +73,9 @@ func TestGet_KeepAlive(t *testing.T) {
 	}
 
 	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
-		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 
-	resp, err = http.Get("http://localhost:80")
+	resp, err = http.Get(addr())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,9 +86,9 @@ func TestGet_KeepAlive(t *testing.T) {
 	}
 
 	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
-		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 
-	resp, err = http.Get("http://localhost:80")
+	resp, err = http.Get(addr())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +99,12 @@ func TestGet_KeepAlive(t *testing.T) {
 	}
 
 	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
-		"USER-AGENT: Go-http-client/1.1", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 
 }
 
 func TestPost(t *testing.T) {
-	resp, err := http.Post("http://localhost:80",
+	resp, err := http.Post(addr(),
 		"application/x-www-form-urlencoded",
 		strings.NewReader("aaaaabbbbbccccc"))
 	if err != nil {
@@ -112,7 +119,27 @@ func TestPost(t *testing.T) {
 
 	assertResponse(t, b, "aaaaabbbbbccccc", "POST", "/", "HTTP/1.1",
 		"CONTENT-TYPE: application/x-www-form-urlencoded", "USER-AGENT: Go-http-client/1.1",
-		"CONTENT-LENGTH: 15", "HOST: localhost:80", "ACCEPT-ENCODING: gzip")
+		"CONTENT-LENGTH: 15", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
+}
+
+func TestPost_ContentLocation(t *testing.T) {
+	req, err := http.NewRequest("POST", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Content-Location", "http://example.com")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := ioutil.ReadAll(resp.Body)
+
+	if strings.HasPrefix(string(b), "<") {
+		t.Errorf("Unexpected body: %v", string(b))
+	}
 }
 
 func TestPost_ContentEncodingGzip(t *testing.T) {
@@ -123,7 +150,7 @@ func TestPost_ContentEncodingGzip(t *testing.T) {
 	writer.Close()
 	gzip := buffer.Bytes()
 
-	req, err := http.NewRequest("POST", "http://localhost:80",
+	req, err := http.NewRequest("POST", addr(),
 		bytes.NewReader(gzip))
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +167,7 @@ func TestPost_ContentEncodingGzip(t *testing.T) {
 
 	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 31",
-		"HOST: localhost:80", "CONTENT-ENCODING: gzip", "ACCEPT-ENCODING: gzip")
+		fmt.Sprintf("HOST: localhost:%v", PORT), "CONTENT-ENCODING: gzip", "ACCEPT-ENCODING: gzip")
 }
 
 func TestPost_ContentEncodingGzipGzip(t *testing.T) {
@@ -157,7 +184,7 @@ func TestPost_ContentEncodingGzipGzip(t *testing.T) {
 	writer.Close()
 	gziped = buffer2.Bytes()
 
-	req, err := http.NewRequest("POST", "http://localhost:80",
+	req, err := http.NewRequest("POST", addr(),
 		bytes.NewReader(gziped))
 	if err != nil {
 		t.Fatal(err)
@@ -174,14 +201,14 @@ func TestPost_ContentEncodingGzipGzip(t *testing.T) {
 
 	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 50",
-		"HOST: localhost:80", "CONTENT-ENCODING: gzip, gzip", "ACCEPT-ENCODING: gzip")
+		fmt.Sprintf("HOST: localhost:%v", PORT), "CONTENT-ENCODING: gzip, gzip", "ACCEPT-ENCODING: gzip")
 }
 
 func TestPost_Chunkded(t *testing.T) {
 	rd, wr := io.Pipe()
 	defer rd.Close()
 
-	req, err := http.NewRequest("POST", "http://localhost:80", rd)
+	req, err := http.NewRequest("POST", addr(), rd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +230,7 @@ func TestPost_Chunkded(t *testing.T) {
 
 	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1",
-		"HOST: localhost:80", "ACCEPT-ENCODING: gzip",
+		fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip",
 		"TRANSFER-ENCODING: chunked")
 }
 
@@ -236,7 +263,6 @@ func assertHeaders(t *testing.T, actual []interface{}, expected ...string) {
 			t.Errorf("Unexpected header:%v. expected:%v.", actual, e)
 		}
 	}
-
 }
 
 func containsHeader(header string, headers []interface{}) bool {

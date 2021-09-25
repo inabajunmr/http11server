@@ -15,13 +15,17 @@ import (
 
 var listener *net.TCPListener
 
-func Serve() {
+var PORT int
 
-	service := ":80"
+func Serve(port int) {
+
+	service := fmt.Sprintf(":%v", port)
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", service)
 	checkError(err)
 	listener, err = net.ListenTCP("tcp4", tcpAddr)
 	checkError(err)
+	PORT = listener.Addr().(*net.TCPAddr).Port
+	log.Printf("LISTEN PORT:%v", PORT)
 
 	for {
 		conn, _ := listener.AcceptTCP()

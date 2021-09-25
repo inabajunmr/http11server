@@ -93,7 +93,7 @@ func (h Headers) GetCompressType() TransferEncoding {
 }
 
 func (h Headers) GetContentType() ContentType {
-	c := h.filter("Content-Type")
+	c := h.filter("CONTENT-TYPE")
 	if len(c) == 0 {
 		return ContentType{contentType: "application/octet-stream"}
 	}
@@ -104,6 +104,15 @@ func (h Headers) GetContentType() ContentType {
 	} else {
 		return ContentType{contentType: s[0]}
 	}
+}
+
+func (h Headers) GetContentLocation() *string {
+	c := h.filter("CONTENT-LOCATION")
+	if len(c) == 0 {
+		return nil
+	}
+
+	return &c[0].FieldValue
 }
 
 func (h Headers) filter(key string) Headers {

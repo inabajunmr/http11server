@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	ghttp "net/http"
 	"strconv"
 	"strings"
 
@@ -93,6 +95,21 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 		if l != length {
 			return nil, &http.HTTPError{Msg: "Content-Length and real body size are different.", Status: 400}
 		}
+
+		cl := headers.GetContentLocation()
+		if cl != nil {
+			g, err := ghttp.Get(*cl)
+			if err != nil {
+				return nil, &http.HTTPError{Msg: fmt.Sprintf("Failed to access to Content-Location: %v.", cl), Status: 400}
+			}
+			defer g.Body.Close()
+			b, err := ioutil.ReadAll(g.Body)
+			if err != nil {
+				return nil, &http.HTTPError{Msg: fmt.Sprintf("Failed to access to Content-Location: %v.", cl), Status: 400}
+			}
+			return b, nil
+		}
+
 		return decompress(body, headers), nil
 	} else {
 		if headers.IsChunkedTransferEncoding() {
@@ -109,7 +126,6 @@ func readBody(reader *bufio.Reader, headers header.Headers) ([]byte, error) {
 				return unzip, nil
 			default:
 				return decompress(b, headers), nil
-
 			}
 
 		} else {
