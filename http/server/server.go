@@ -22,32 +22,40 @@ func Serve() {
 	checkError(err)
 	listener, err = net.ListenTCP("tcp4", tcpAddr)
 	checkError(err)
-	conn, _ := listener.AcceptTCP()
-	reader := bufio.NewReader(conn)
 
 	for {
-		if processRequest(conn, reader) {
-			log.Println("Close")
-			conn.Close()
-			conn, _ = listener.AcceptTCP()
-			reader = bufio.NewReader(conn)
-		}
+		conn, _ := listener.AcceptTCP()
+		reader := bufio.NewReader(conn)
+		go processRequest(conn, reader)
 	}
 }
 
-func processRequest(conn net.Conn, reader *bufio.Reader) bool {
-	req, err := request.ParseRequest(reader)
-	if err != nil {
-		return handleError(conn, err)
+func processRequest(conn net.Conn, reader *bufio.Reader) { // TODO readerの利用をやめてみる？
+	for {
+		req, err := request.ParseRequest(reader)
+		if err != nil {
+			if handleError(conn, err) {
+				log.Println("Close")
+				conn.Close()
+				return
+			}
+			continue
+		}
+
+		log.Println(req.StartLine.ToString())
+		log.Println(req.Headers.ToString())
+		log.Println(string(req.Body))
+
+		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: *req}
+		res.Response(conn)
+		if req.Headers.IsConnectionClose() {
+			log.Println("Close")
+			conn.Close()
+			return
+		} else {
+			continue
+		}
 	}
-
-	log.Println(req.StartLine.ToString())
-	log.Println(req.Headers.ToString())
-	log.Println(string(req.Body))
-
-	res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: *req}
-	res.Response(conn)
-	return req.Headers.IsConnectionClose()
 }
 
 func Stop() {
@@ -59,6 +67,8 @@ func handleError(conn net.Conn, err error) bool {
 	case *http.HTTPError:
 		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: httpErr.Status, ReasonPhrase: httpErr.Msg}
 		res.Response(conn)
+	case *http.WaitRequestError:
+		return false
 	default:
 		if err == io.EOF {
 			return true

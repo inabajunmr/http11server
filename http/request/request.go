@@ -21,9 +21,13 @@ type Request struct {
 }
 
 func ParseRequest(reader *bufio.Reader) (*Request, error) {
+
 	l, err := readLine(reader)
 	if err != nil {
 		return nil, err
+	}
+	if *l == "" {
+		return nil, &http.WaitRequestError{Msg: "Response no request yet."}
 	}
 
 	startLine, err := ParseStartLine(*l)

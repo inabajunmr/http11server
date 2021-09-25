@@ -12,7 +12,6 @@ import (
 func TestMain(m *testing.M) {
 	go Serve()
 	m.Run()
-	Stop()
 }
 
 func TestGet(t *testing.T) {
@@ -116,6 +115,7 @@ func TestPost(t *testing.T) {
 
 func TestPost_Chunkded(t *testing.T) {
 	rd, wr := io.Pipe()
+	defer rd.Close()
 
 	req, err := http.NewRequest("POST", "http://localhost:80", rd)
 	if err != nil {
