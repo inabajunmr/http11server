@@ -13,6 +13,7 @@ func TestParseRequest_Get(t *testing.T) {
 		`GET / HTTP/1.1
 Header1: aaa
 Header2: bbb ccc
+Host: example.com
 `
 
 	result, err := ParseRequest(bufio.NewReader((strings.NewReader(request))))
@@ -51,6 +52,7 @@ func TestParseRequest_Post(t *testing.T) {
 Header1: aaa
 Header2: bbb ccc
 Content-Length: 12
+Host: example.com
 
 aaaaa
 bbbbb
@@ -92,6 +94,7 @@ func TestParseRequest_Post_InvalidContentLength(t *testing.T) {
 Header1: aaa
 Header2: bbb ccc
 Content-Length: 14
+Host: example.com
 
 aaaaa
 bbbbb

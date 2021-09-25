@@ -1,6 +1,8 @@
 package header
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestParseHeader(t *testing.T) {
 	type expected struct {
@@ -40,5 +42,38 @@ func TestParseHeader(t *testing.T) {
 
 		})
 	}
+}
 
+func TestValidate_NoHostHeader(t *testing.T) {
+	h, err := ParseHeader("AAA: aaa")
+	if err != nil {
+		t.Errorf("Unexpected error: %v.", err)
+	}
+	hs := Headers{h}
+	httpError := hs.Validate()
+	if httpError == nil {
+		t.Error("Unexpected success")
+	}
+	if httpError.Error() != "Request require only one Host header." {
+		t.Errorf("Unexpected error: %v.", httpError.Error())
+	}
+}
+
+func TestValidate_MultipleHostHeader(t *testing.T) {
+	h1, err := ParseHeader("Host: example.com")
+	if err != nil {
+		t.Errorf("Unexpected error: %v.", err)
+	}
+	h2, err := ParseHeader("Host: example.com")
+	if err != nil {
+		t.Errorf("Unexpected error: %v.", err)
+	}
+	hs := Headers{h1, h2}
+	httpError := hs.Validate()
+	if httpError == nil {
+		t.Error("Unexpected success")
+	}
+	if httpError.Error() != "Request require only one Host header." {
+		t.Errorf("Unexpected error: %v.", httpError.Error())
+	}
 }

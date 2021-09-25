@@ -34,6 +34,10 @@ func ParseRequest(reader *bufio.Reader) (*Request, error) {
 	if err == io.EOF {
 		return &Request{StartLine: *startLine, Headers: *headers, Body: nil}, nil
 	}
+	if headers.Validate() != nil {
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, err
 	}

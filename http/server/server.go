@@ -38,18 +38,7 @@ func Serve() {
 func processRequest(conn net.Conn, reader *bufio.Reader) bool {
 	req, err := request.ParseRequest(reader)
 	if err != nil {
-		switch httpErr := err.(type) {
-		case *http.HTTPError:
-			res := &response.EchoResponse{Version: http.HTTP11, StatusCode: httpErr.Status, ReasonPhrase: httpErr.Msg}
-			res.Response(conn)
-		default:
-			if err == io.EOF {
-				return true
-			}
-			res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 503, ReasonPhrase: "Service Unavailable"}
-			res.Response(conn)
-		}
-		return false
+		return handleError(conn, err)
 	}
 
 	log.Println(req.StartLine.ToString())
@@ -63,6 +52,21 @@ func processRequest(conn net.Conn, reader *bufio.Reader) bool {
 
 func Stop() {
 	listener.Close()
+}
+
+func handleError(conn net.Conn, err error) bool {
+	switch httpErr := err.(type) {
+	case *http.HTTPError:
+		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: httpErr.Status, ReasonPhrase: httpErr.Msg}
+		res.Response(conn)
+	default:
+		if err == io.EOF {
+			return true
+		}
+		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 503, ReasonPhrase: "Service Unavailable"}
+		res.Response(conn)
+	}
+	return false
 }
 
 func checkError(err error) {

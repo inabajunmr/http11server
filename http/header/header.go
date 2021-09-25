@@ -37,6 +37,13 @@ func (hs Headers) ToString() string {
 	return v
 }
 
+func (h Headers) Validate() error {
+	if len(h.filter("HOST")) != 1 {
+		return &http.HTTPError{Status: 400, Msg: "Request require only one Host header."}
+	}
+	return nil
+}
+
 func (h Headers) IsConnectionClose() bool {
 	filtered := h.filter("CONNECTION")
 	if len(filtered) == 0 {
@@ -48,7 +55,7 @@ func (h Headers) IsConnectionClose() bool {
 func (h Headers) GetContentLength() (int, error) {
 	filtered := h.filter("CONTENT-LENGTH")
 	if len(filtered) >= 2 {
-		return 0, &http.HTTPError{Msg: "Multiple Content-Length is not allowed."}
+		return 0, &http.HTTPError{Status: 400, Msg: "Multiple Content-Length is not allowed."}
 	}
 	if len(filtered) == 0 {
 		return 0, nil
