@@ -27,7 +27,6 @@ func (a Accept) getWeight() float64 {
 			return q
 		}
 	}
-
 	return 1
 }
 

@@ -60,6 +60,18 @@ func (h Headers) GetContentLength() (int, error) {
 	return length, nil
 }
 
+func (h Headers) GetAcceptEncodings() []AcceptEncoding {
+	ces := []AcceptEncoding{}
+	filtered := h.filter("ACCEPT-ENCODING")
+	if len(filtered) == 0 {
+		ces = append(ces, AcceptEncoding{Coding: CONTENT_CODING_IDENTITY, Weight: 1})
+		return ces
+	}
+
+	ces = append(ces, ParseAcceptEncoding(filtered[0].FieldValue)...)
+	return ces
+}
+
 func (h Headers) GetContentEncodings() []ContentCoding {
 	ces := []ContentCoding{}
 	filtered := h.filter("CONTENT-ENCODING")

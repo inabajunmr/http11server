@@ -1,6 +1,8 @@
 package response
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -51,7 +53,6 @@ func GetResponse(req request.Request) Response {
 		return OptionsResponse{Version: http.HTTP11, Request: req}
 	default:
 		return EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: req}
-
 	}
 }
 
@@ -63,6 +64,14 @@ func (r EchoResponse) Headers() header.Headers {
 	headers := header.Headers{}
 	b, _ := r.Body()
 	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
+	for _, ae := range r.Request.Headers.GetAcceptEncodings() {
+		if ae.Coding == header.CONTENT_CODING_GZIP {
+			headers = append(headers, &header.Header{FieldName: "Content-Encoding", FieldValue: "gzip"})
+			break
+		} else if ae.Coding == header.CONTENT_CODING_IDENTITY {
+			break
+		}
+	}
 	return headers
 }
 
@@ -92,6 +101,11 @@ func (r HeadResponse) Headers() header.Headers {
 	headers := header.Headers{}
 	b, _ := r.Body()
 	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
+	for _, ae := range r.Request.Headers.GetAcceptEncodings() {
+		if ae.Coding == header.CONTENT_CODING_GZIP {
+			headers = append(headers, &header.Header{FieldName: "Content-Encoding", FieldValue: "gzip"})
+		}
+	}
 	return headers
 }
 
@@ -133,24 +147,36 @@ func echoBody(r request.Request) ([]byte, error) {
 	accepts := r.Headers.GetAccept()
 	if len(accepts) == 0 {
 		// default is json
-		return json.Marshal(map[string]interface{}{
+		j, err := json.Marshal(map[string]interface{}{
 			"method":         r.StartLine.Method.ToString(),
 			"request_target": r.StartLine.RequestTarget,
 			"version":        r.StartLine.Version.ToString(),
 			"headers":        headerStrs,
 			"body":           string(r.Body),
 		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		return compress(j, r.Headers.GetAcceptEncodings()), nil
 	}
 
 	for _, a := range accepts {
 		if a.Type == "application" && a.SubType == "json" {
-			return json.Marshal(map[string]interface{}{
+			j, err := json.Marshal(map[string]interface{}{
 				"method":         r.StartLine.Method.ToString(),
 				"request_target": r.StartLine.RequestTarget,
 				"version":        r.StartLine.Version.ToString(),
 				"headers":        headerStrs,
 				"body":           string(r.Body),
 			})
+
+			if err != nil {
+				return nil, err
+			}
+
+			return compress(j, r.Headers.GetAcceptEncodings()), nil
 		} else if a.Type == "application" && a.SubType == "xml" {
 			v := &Echo{Method: r.StartLine.Method.ToString(),
 				RequestTarget: r.StartLine.RequestTarget,
@@ -158,10 +184,28 @@ func echoBody(r request.Request) ([]byte, error) {
 				Headers:       headerStrs,
 				Body:          string(r.Body)}
 			xml, err := xml.MarshalIndent(v, "", " ")
-			return xml, err
+			if err != nil {
+				return nil, err
+			}
+			return compress(xml, r.Headers.GetAcceptEncodings()), nil
 		}
 	}
 
-	// TODO no acccept supported
-	return nil, nil
+	return nil, &http.HTTPError{Status: 406, Msg: "Not Acceptable"}
+}
+
+func compress(body []byte, acceptEncodings []header.AcceptEncoding) []byte {
+	for _, ae := range acceptEncodings {
+		if ae.Coding == header.CONTENT_CODING_GZIP {
+			var b bytes.Buffer
+			writer := gzip.NewWriter(&b)
+			writer.Write(body) // TODO error
+			writer.Flush()
+			writer.Close()
+			return b.Bytes()
+		} else if ae.Coding == header.CONTENT_CODING_IDENTITY {
+			return body
+		}
+	}
+	return []byte{} // TODO error
 }

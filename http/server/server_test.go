@@ -163,6 +163,59 @@ func TestGet_AcceptXmlAndJson(t *testing.T) {
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "ACCEPT: application/json; q=0.5, application/xml")
 }
 
+func TestGet_AccceptEncodingGzip(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Accept-Encoding", "gzip")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gzipReader, err := gzip.NewReader(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unzip, err := ioutil.ReadAll(gzipReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertJsonResponse(t, unzip, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
+}
+
+func TestGet_AccceptEncodingIdentityGzip(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Accept-Encoding", "gzip; q=0.5, identity")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip; q=0.5, identity")
+}
+
 func TestHead(t *testing.T) {
 	resp, err := http.Head(addr())
 	if err != nil {
