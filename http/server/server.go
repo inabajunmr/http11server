@@ -34,7 +34,7 @@ func Serve(port int) {
 	}
 }
 
-func processRequest(conn net.Conn, reader *bufio.Reader) { // TODO readerの利用をやめてみる？
+func processRequest(conn net.Conn, reader *bufio.Reader) {
 	for {
 		req, err := request.ParseRequest(reader)
 		if err != nil {
@@ -50,8 +50,7 @@ func processRequest(conn net.Conn, reader *bufio.Reader) { // TODO readerの利�
 		log.Println(req.Headers.ToString())
 		log.Println(string(req.Body))
 
-		res := &response.EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: *req}
-		res.Response(conn)
+		response.GetResponse(*req).Response(conn)
 		if req.Headers.IsConnectionClose() {
 			log.Println("Close")
 			conn.Close()

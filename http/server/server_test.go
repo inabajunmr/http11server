@@ -103,6 +103,20 @@ func TestGet_KeepAlive(t *testing.T) {
 
 }
 
+func TestHead(t *testing.T) {
+	headResp, err := http.Head(addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(headResp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) != 0 {
+		t.Error("Unexpected body.")
+	}
+}
+
 func TestPost(t *testing.T) {
 	resp, err := http.Post(addr(),
 		"application/x-www-form-urlencoded",
