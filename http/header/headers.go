@@ -22,6 +22,10 @@ func (h Headers) Validate() error {
 	if len(h.filter("HOST")) != 1 {
 		return &http.HTTPError{Status: 400, Msg: "Request require only one Host header."}
 	}
+	exp := h.filter("EXPECT")
+	if len(exp) != 0 && strings.ToUpper(exp[0].FieldValue) != "100-CONTINUE" {
+		return &http.HTTPError{Status: 417, Msg: "Expectation Failed"}
+	}
 	return nil
 }
 
