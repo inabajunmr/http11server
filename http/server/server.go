@@ -50,7 +50,15 @@ func processRequest(conn net.Conn, reader *bufio.Reader) {
 		log.Println(req.Headers.ToString())
 		log.Println(string(req.Body))
 
-		response.GetResponse(*req).Response(conn)
+		err = response.GetResponse(*req).Response(conn)
+		if err != nil {
+			if handleError(conn, err) {
+				log.Println("Close")
+				conn.Close()
+				return
+			}
+		}
+
 		if req.Headers.IsConnectionClose() {
 			log.Println("Close")
 			conn.Close()

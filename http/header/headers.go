@@ -29,6 +29,14 @@ func (h Headers) Validate() error {
 	return nil
 }
 
+func (h Headers) GetAccept() []Accept {
+	filtered := h.filter("ACCEPT")
+	if len(filtered) == 0 {
+		return []Accept{}
+	}
+	return ParseAccept(filtered[0].FieldValue)
+}
+
 func (h Headers) IsConnectionClose() bool {
 	filtered := h.filter("CONNECTION")
 	if len(filtered) == 0 {

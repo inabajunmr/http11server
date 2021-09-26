@@ -2,6 +2,7 @@ package response
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 )
 
 type Response interface {
-	Response(conn net.Conn)
+	Response(conn net.Conn) error
 }
 
 type EchoResponse struct {
@@ -27,6 +28,14 @@ type HeadResponse struct {
 	StatusCode   int
 	ReasonPhrase string
 	Request      request.Request
+}
+
+type Echo struct {
+	Method        string   `xml:"method"`
+	RequestTarget string   `xml:"request_target"`
+	Version       string   `xml:"version"`
+	Headers       []string `xml:"headers"`
+	Body          string   `xml:"body"`
 }
 
 type OptionsResponse struct {
@@ -52,19 +61,27 @@ func (r EchoResponse) StatusLine() string {
 
 func (r EchoResponse) Headers() header.Headers {
 	headers := header.Headers{}
-	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(r.Body()))})
+	b, _ := r.Body()
+	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
 	return headers
 }
 
-func (r EchoResponse) Body() []byte {
+func (r EchoResponse) Body() ([]byte, error) {
 	return echoBody(r.Request)
 }
 
-func (r EchoResponse) Response(conn net.Conn) {
+func (r EchoResponse) Response(conn net.Conn) error {
+
+	b, err := r.Body()
+	if err != nil {
+		return err
+	}
+
 	conn.Write([]byte(r.StatusLine()))
 	conn.Write([]byte(r.Headers().ToString()))
 	conn.Write([]byte("\n"))
-	conn.Write([]byte(r.Body()))
+	conn.Write([]byte(b))
+	return nil
 }
 
 func (r HeadResponse) StatusLine() string {
@@ -73,14 +90,16 @@ func (r HeadResponse) StatusLine() string {
 
 func (r HeadResponse) Headers() header.Headers {
 	headers := header.Headers{}
-	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(r.Body()))})
+	b, _ := r.Body()
+	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
 	return headers
 }
 
-func (r HeadResponse) Response(conn net.Conn) {
+func (r HeadResponse) Response(conn net.Conn) error {
 	conn.Write([]byte(r.StatusLine()))
 	conn.Write([]byte(r.Headers().ToString()))
 	conn.Write([]byte("\n"))
+	return nil
 }
 
 func (r OptionsResponse) StatusLine() string {
@@ -93,29 +112,56 @@ func (r OptionsResponse) Headers() header.Headers {
 	return headers
 }
 
-func (r OptionsResponse) Response(conn net.Conn) {
+func (r OptionsResponse) Response(conn net.Conn) error {
 	conn.Write([]byte(r.StatusLine()))
 	conn.Write([]byte(r.Headers().ToString()))
 	conn.Write([]byte("\n"))
+	return nil
 }
 
-func (r HeadResponse) Body() []byte {
+func (r HeadResponse) Body() ([]byte, error) {
 	return echoBody(r.Request)
 }
 
-func echoBody(r request.Request) []byte {
+func echoBody(r request.Request) ([]byte, error) {
 
 	headerStrs := []string{}
 	for _, h := range r.Headers {
 		headerStrs = append(headerStrs, h.ToString())
 	}
 
-	body, _ := json.Marshal(map[string]interface{}{
-		"method":         r.StartLine.Method.ToString(),
-		"request_target": r.StartLine.RequestTarget,
-		"version":        r.StartLine.Version.ToString(),
-		"headers":        headerStrs,
-		"body":           string(r.Body),
-	}) // TODO err
-	return body
+	accepts := r.Headers.GetAccept()
+	if len(accepts) == 0 {
+		// default is json
+		return json.Marshal(map[string]interface{}{
+			"method":         r.StartLine.Method.ToString(),
+			"request_target": r.StartLine.RequestTarget,
+			"version":        r.StartLine.Version.ToString(),
+			"headers":        headerStrs,
+			"body":           string(r.Body),
+		})
+	}
+
+	for _, a := range accepts {
+		if a.Type == "application" && a.SubType == "json" {
+			return json.Marshal(map[string]interface{}{
+				"method":         r.StartLine.Method.ToString(),
+				"request_target": r.StartLine.RequestTarget,
+				"version":        r.StartLine.Version.ToString(),
+				"headers":        headerStrs,
+				"body":           string(r.Body),
+			})
+		} else if a.Type == "application" && a.SubType == "xml" {
+			v := &Echo{Method: r.StartLine.Method.ToString(),
+				RequestTarget: r.StartLine.RequestTarget,
+				Version:       r.StartLine.Version.ToString(),
+				Headers:       headerStrs,
+				Body:          string(r.Body)}
+			xml, err := xml.MarshalIndent(v, "", " ")
+			return xml, err
+		}
+	}
+
+	// TODO no acccept supported
+	return nil, nil
 }

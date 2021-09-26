@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/inabajunmr/http11server/http/response"
 )
 
 func TestMain(m *testing.M) {
@@ -34,7 +37,7 @@ func TestGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 }
 
@@ -56,9 +59,8 @@ func TestGet_ConnectionClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "CONNECTION: close")
-
 }
 
 func TestGet_KeepAlive(t *testing.T) {
@@ -72,7 +74,7 @@ func TestGet_KeepAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 
 	resp, err = http.Get(addr())
@@ -85,7 +87,7 @@ func TestGet_KeepAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 
 	resp, err = http.Get(addr())
@@ -98,9 +100,67 @@ func TestGet_KeepAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "", "GET", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
+}
 
+func TestGet_AcceptJson(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "ACCEPT: application/json")
+}
+
+func TestGet_AcceptXml(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Accept", "application/xml")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	fmt.Println(string(b))
+	assertXmlResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "ACCEPT: application/xml")
+}
+
+func TestGet_AcceptXmlAndJson(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Accept", "application/json; q=0.5, application/xml")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	fmt.Println(string(b))
+	assertXmlResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip", "ACCEPT: application/json; q=0.5, application/xml")
 }
 
 func TestHead(t *testing.T) {
@@ -161,7 +221,7 @@ func TestPost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assertResponse(t, b, "aaaaabbbbbccccc", "POST", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "aaaaabbbbbccccc", "POST", "/", "HTTP/1.1",
 		"CONTENT-TYPE: application/x-www-form-urlencoded", "USER-AGENT: Go-http-client/1.1",
 		"CONTENT-LENGTH: 15", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
 }
@@ -209,7 +269,7 @@ func TestPost_ContentEncodingGzip(t *testing.T) {
 	defer resp.Body.Close()
 	b, _ := ioutil.ReadAll(resp.Body)
 
-	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 31",
 		fmt.Sprintf("HOST: localhost:%v", PORT), "CONTENT-ENCODING: gzip", "ACCEPT-ENCODING: gzip")
 }
@@ -243,7 +303,7 @@ func TestPost_ContentEncodingGzipGzip(t *testing.T) {
 	defer resp.Body.Close()
 	b, _ := ioutil.ReadAll(resp.Body)
 
-	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", "CONTENT-LENGTH: 50",
 		fmt.Sprintf("HOST: localhost:%v", PORT), "CONTENT-ENCODING: gzip, gzip", "ACCEPT-ENCODING: gzip")
 }
@@ -272,13 +332,13 @@ func TestPost_Chunkded(t *testing.T) {
 	defer resp.Body.Close()
 	b, _ := ioutil.ReadAll(resp.Body)
 
-	assertResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
+	assertJsonResponse(t, b, "hellohellohello", "POST", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1",
 		fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip",
 		"TRANSFER-ENCODING: chunked")
 }
 
-func assertResponse(t *testing.T, response []byte, expectedBody string, expectedMethod string, expectedRequestTarget string, expectedVersion string, expectedHeaders ...string) {
+func assertJsonResponse(t *testing.T, response []byte, expectedBody string, expectedMethod string, expectedRequestTarget string, expectedVersion string, expectedHeaders ...string) {
 	res := map[string]interface{}{}
 	json.Unmarshal(response, &res)
 
@@ -295,6 +355,28 @@ func assertResponse(t *testing.T, response []byte, expectedBody string, expected
 	}
 	if res["version"] != expectedVersion {
 		t.Errorf("Unexpected version:%v.", res["version"])
+	}
+}
+
+func assertXmlResponse(t *testing.T, resp []byte, expectedBody string, expectedMethod string, expectedRequestTarget string, expectedVersion string, expectedHeaders ...string) {
+	res := response.Echo{}
+	xml.Unmarshal(resp, &res)
+	if res.Body != expectedBody {
+		t.Errorf("Unexpected body:%v.", res.Body)
+	}
+	s := make([]interface{}, len(res.Headers))
+	for i, v := range res.Headers {
+		s[i] = v
+	}
+	assertHeaders(t, s, expectedHeaders...)
+	if res.Method != expectedMethod {
+		t.Errorf("Unexpected method:%v.", res.Method)
+	}
+	if res.RequestTarget != expectedRequestTarget {
+		t.Errorf("Unexpected request_target:%v.", res.RequestTarget)
+	}
+	if res.Version != expectedVersion {
+		t.Errorf("Unexpected version:%v.", res.Version)
 	}
 }
 
