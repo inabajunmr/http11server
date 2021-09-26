@@ -104,16 +104,46 @@ func TestGet_KeepAlive(t *testing.T) {
 }
 
 func TestHead(t *testing.T) {
-	headResp, err := http.Head(addr())
+	resp, err := http.Head(addr())
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ioutil.ReadAll(headResp.Body)
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(b) != 0 {
 		t.Error("Unexpected body.")
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("Unexpected status: %v", resp.StatusCode)
+	}
+}
+
+func TestOptions(t *testing.T) {
+	req, err := http.NewRequest(http.MethodOptions, addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if len(b) != 0 {
+		t.Error("Unexpected body.")
+	}
+	if resp.Header.Get("Allow") != "GET, POST, HEAD, OPTIONS" {
+		t.Errorf("Unexpected header: %v.", resp.Header.Get("Allow"))
+	}
+	if resp.StatusCode != 204 {
+		t.Errorf("Unexpected status: %v", resp.StatusCode)
 	}
 }
 

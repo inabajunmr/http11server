@@ -29,10 +29,17 @@ type HeadResponse struct {
 	Request      request.Request
 }
 
+type OptionsResponse struct {
+	Version http.HTTPVersion
+	Request request.Request
+}
+
 func GetResponse(req request.Request) Response {
 	switch req.StartLine.Method {
 	case request.HEAD:
 		return HeadResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: req}
+	case request.OPTIONS:
+		return OptionsResponse{Version: http.HTTP11, Request: req}
 	default:
 		return EchoResponse{Version: http.HTTP11, StatusCode: 200, ReasonPhrase: "OK", Request: req}
 
@@ -74,7 +81,22 @@ func (r HeadResponse) Response(conn net.Conn) {
 	conn.Write([]byte(r.StatusLine()))
 	conn.Write([]byte(r.Headers().ToString()))
 	conn.Write([]byte("\n"))
+}
 
+func (r OptionsResponse) StatusLine() string {
+	return fmt.Sprintf("%v %v %v\n", r.Version.ToString(), 204, "No Content")
+}
+
+func (r OptionsResponse) Headers() header.Headers {
+	headers := header.Headers{}
+	headers = append(headers, &header.Header{FieldName: "Allow", FieldValue: "GET, POST, HEAD, OPTIONS"})
+	return headers
+}
+
+func (r OptionsResponse) Response(conn net.Conn) {
+	conn.Write([]byte(r.StatusLine()))
+	conn.Write([]byte(r.Headers().ToString()))
+	conn.Write([]byte("\n"))
 }
 
 func (r HeadResponse) Body() []byte {
