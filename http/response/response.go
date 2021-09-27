@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/inabajunmr/http11server/http"
 	"github.com/inabajunmr/http11server/http/header"
@@ -64,6 +65,7 @@ func (r EchoResponse) Headers() header.Headers {
 	headers := header.Headers{}
 	b, _ := r.Body()
 	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
+	headers = append(headers, &header.Header{FieldName: "Date", FieldValue: time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")})
 	for _, ae := range r.Request.Headers.GetAcceptEncodings() {
 		if ae.Coding == header.CONTENT_CODING_GZIP {
 			headers = append(headers, &header.Header{FieldName: "Content-Encoding", FieldValue: "gzip"})
@@ -101,6 +103,7 @@ func (r HeadResponse) Headers() header.Headers {
 	headers := header.Headers{}
 	b, _ := r.Body()
 	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
+	headers = append(headers, &header.Header{FieldName: "Date", FieldValue: time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")})
 	for _, ae := range r.Request.Headers.GetAcceptEncodings() {
 		if ae.Coding == header.CONTENT_CODING_GZIP {
 			headers = append(headers, &header.Header{FieldName: "Content-Encoding", FieldValue: "gzip"})
@@ -123,6 +126,7 @@ func (r OptionsResponse) StatusLine() string {
 func (r OptionsResponse) Headers() header.Headers {
 	headers := header.Headers{}
 	headers = append(headers, &header.Header{FieldName: "Allow", FieldValue: "GET, POST, HEAD, OPTIONS"})
+	headers = append(headers, &header.Header{FieldName: "Date", FieldValue: time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")})
 	return headers
 }
 
