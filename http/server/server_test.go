@@ -39,6 +39,13 @@ func TestGet(t *testing.T) {
 
 	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip")
+
+	if resp.Header.Get("Date") == "" {
+		t.Errorf("Missing Date header.")
+	}
+	if resp.Header.Get("Vary") != "accept-encoding, accept" {
+		t.Errorf("Unexpected Vary Header: %v.", resp.Header.Get("Vary"))
+	}
 }
 
 func TestGet_ConnectionClosed(t *testing.T) {
