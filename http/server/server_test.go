@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -45,6 +46,9 @@ func TestGet(t *testing.T) {
 	}
 	if resp.Header.Get("Vary") != "accept-encoding, accept" {
 		t.Errorf("Unexpected Vary Header: %v.", resp.Header.Get("Vary"))
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("Unexpected status: %v.", resp.StatusCode)
 	}
 }
 
@@ -221,6 +225,123 @@ func TestGet_AccceptEncodingIdentityGzip(t *testing.T) {
 
 	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
 		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "ACCEPT-ENCODING: gzip; q=0.5, identity")
+}
+
+func TestGet_Range1(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Range", "bytes=0-")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertJsonResponse(t, b, "", "GET", "/", "HTTP/1.1",
+		"USER-AGENT: Go-http-client/1.1", fmt.Sprintf("HOST: localhost:%v", PORT), "RANGE: bytes=0-")
+	if resp.StatusCode != 206 {
+		t.Errorf("Unexpected status: %v.", resp.StatusCode)
+	}
+}
+
+func TestGet_Range2(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Range", "bytes=1-10")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(b) != "\"body\":\"\"" {
+		t.Errorf("Unexpected Body: %v", string(b))
+	}
+	if resp.Header.Get("Content-Range") != "bytes 1-10/157" {
+		t.Errorf("Unexpected Content-Range: %v", resp.Header.Get("Content-Range"))
+	}
+	if resp.Header.Get("Content-Length") != strconv.Itoa(len(b)) {
+		t.Errorf("Unexpected Content-Length: %v", resp.Header.Get("Content-Length"))
+	}
+	if resp.StatusCode != 206 {
+		t.Errorf("Unexpected status: %v.", resp.StatusCode)
+	}
+}
+
+func TestGet_Range3(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Range", "bytes=-10")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(b) != "HTTP/1.1\"}" {
+		t.Errorf("Unexpected Body: %v", string(b))
+	}
+	if resp.Header.Get("Content-Range") != "bytes 146-156/156" {
+		t.Errorf("Unexpected Content-Range: %v", resp.Header.Get("Content-Range"))
+	}
+	if resp.Header.Get("Content-Length") != strconv.Itoa(len(b)) {
+		t.Errorf("Unexpected Content-Length: %v", resp.Header.Get("Content-Length"))
+	}
+	if resp.StatusCode != 206 {
+		t.Errorf("Unexpected status: %v.", resp.StatusCode)
+	}
+}
+
+func TestGet_Range4(t *testing.T) {
+	req, err := http.NewRequest("GET", addr(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Range", "bytes=0-159")
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	_, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Header.Get("Content-Range") != "bytes */158" {
+		t.Errorf("Unexpected Content-Range: %v", resp.Header.Get("Content-Range"))
+	}
+	if resp.Header.Get("Content-Length") != "0" {
+		t.Errorf("Unexpected Content-Length: %v", resp.Header.Get("Content-Length"))
+	}
+	if resp.StatusCode != 416 {
+		t.Errorf("Unexpected status: %v.", resp.StatusCode)
+	}
 }
 
 func TestHead(t *testing.T) {

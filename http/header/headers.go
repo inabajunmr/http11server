@@ -60,16 +60,21 @@ func (h Headers) GetContentLength() (int, error) {
 	return length, nil
 }
 
+func (h Headers) GetRanges() ([]Range, error) {
+	filtered := h.filter("RANGE")
+	if len(filtered) == 0 {
+		return []Range{}, nil
+	}
+	return ParseRange(filtered[0].FieldValue)
+}
+
 func (h Headers) GetAcceptEncodings() []AcceptEncoding {
-	ces := []AcceptEncoding{}
 	filtered := h.filter("ACCEPT-ENCODING")
 	if len(filtered) == 0 {
-		ces = append(ces, AcceptEncoding{Coding: CONTENT_CODING_IDENTITY, Weight: 1})
-		return ces
+		return []AcceptEncoding{{Coding: CONTENT_CODING_IDENTITY, Weight: 1}}
 	}
 
-	ces = append(ces, ParseAcceptEncoding(filtered[0].FieldValue)...)
-	return ces
+	return ParseAcceptEncoding(filtered[0].FieldValue)
 }
 
 func (h Headers) GetContentEncodings() []ContentCoding {

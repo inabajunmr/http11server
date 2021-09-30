@@ -28,15 +28,16 @@ type Echo struct {
 	Body          string   `xml:"body"`
 }
 
-func (r EchoResponse) StatusLine() string {
-	return fmt.Sprintf("%v %v %v\n", r.Version.ToString(), r.StatusCode, r.ReasonPhrase)
+func (r EchoResponse) StatusLine(code int) string {
+	return fmt.Sprintf("%v %v %v\n", r.Version.ToString(), code, r.ReasonPhrase)
 }
 
-func echoResponseHeader(r request.Request, b []byte) header.Headers {
+// body is not ranged body. If request has Range header, it's not splited yet.
+func echoResponseHeader(r request.Request, body []byte) header.Headers {
 	headers := header.Headers{}
-	headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(b))})
 	headers = append(headers, &header.Header{FieldName: "Date", FieldValue: time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")})
 	headers = append(headers, &header.Header{FieldName: "Vary", FieldValue: "accept-encoding, accept"})
+	headers = append(headers, &header.Header{FieldName: "Accept-Range", FieldValue: "bytes"})
 
 	for _, ae := range r.Headers.GetAcceptEncodings() {
 		if ae.Coding == header.CONTENT_CODING_GZIP {
@@ -47,7 +48,41 @@ func echoResponseHeader(r request.Request, b []byte) header.Headers {
 		}
 	}
 
+	ranges, _ := r.Headers.GetRanges()
+	if len(ranges) >= 1 { // multiple ranges is unsuppored yet
+		s, e := getRange(ranges[0].Start, ranges[0].End, body)
+		if len(body) < e {
+			// Range header specify bigger end value than body length
+			headers = append(headers, &header.Header{FieldName: "Content-Range",
+				FieldValue: fmt.Sprintf("bytes */%v", len(body))})
+			headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: "0"})
+		} else {
+			headers = append(headers, &header.Header{FieldName: "Content-Range",
+				FieldValue: fmt.Sprintf("bytes %v-%v/%v", s, e, len(body))})
+			headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(e - s)})
+		}
+	} else {
+		headers = append(headers, &header.Header{FieldName: "Content-Length", FieldValue: strconv.Itoa(len(body))})
+	}
 	return headers
+}
+
+func getRange(start *int, end *int, body []byte) (int, int) {
+	rs := start
+	if rs == nil {
+		s := len(body) - *end
+		rs = &s
+		length := len(body)
+		return *rs, length
+	}
+
+	re := end
+	if re == nil {
+		length := len(body)
+		re = &length
+	}
+
+	return *rs, *re
 }
 
 func (r EchoResponse) Headers() header.Headers {
@@ -61,15 +96,36 @@ func (r EchoResponse) Body() ([]byte, error) {
 
 func (r EchoResponse) Response(conn net.Conn) error {
 
-	b, err := r.Body()
+	fullBody, err := r.Body()
 	if err != nil {
 		return err
 	}
 
-	conn.Write([]byte(r.StatusLine()))
+	ranges, _ := r.Request.Headers.GetRanges()
+
+	var b []byte
+	status := 200
+	if len(ranges) >= 1 {
+		s, e := getRange(ranges[0].Start, ranges[0].End, fullBody)
+		b = fullBody[s:e]
+
+		if len(fullBody) < e {
+			status = 416
+			conn.Write([]byte(r.StatusLine(status)))
+			conn.Write([]byte(r.Headers().ToString()))
+			conn.Write([]byte("\n"))
+			return nil
+		}
+		status = 206
+	} else {
+		b = fullBody
+	}
+
+	conn.Write([]byte(r.StatusLine(status)))
 	conn.Write([]byte(r.Headers().ToString()))
 	conn.Write([]byte("\n"))
-	conn.Write([]byte(b))
+	conn.Write(b)
+
 	return nil
 }
 
